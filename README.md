@@ -253,3 +253,5 @@ tactical_fitness_env/
     ├── app.py             # FastAPI application (HTTP + WebSocket endpoints)
     └── Dockerfile         # Container image definition
 ```
+#   t a c t i c a l - f i t n e s s - e n v  
+ 
