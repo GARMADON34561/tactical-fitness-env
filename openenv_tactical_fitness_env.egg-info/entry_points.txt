@@ -1,0 +1,2 @@
+[console_scripts]
+server = tactical_fitness_env.server.app:main
