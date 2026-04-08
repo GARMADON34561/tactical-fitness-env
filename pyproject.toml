@@ -1,13 +1,17 @@
 [project]
-name = "openenv-tactical_fitness_env"
+name = "tactical_fitness_env"
 version = "0.1.0"
-description = "Tactical Fitness AI - OpenEnv Environment"
+description = "Tactical Fitness AI - OpenEnv Environment for military training"
 authors = [{name = "Garmadon"}]
 dependencies = [
     "openenv-core>=0.2.2",
     "openai>=1.0.0",
+    "uvicorn>=0.24.0",
 ]
 requires-python = ">=3.10"
+
+[project.scripts]
+tactical-fitness-server = "server.app:main"
 
 [build-system]
 requires = ["setuptools>=61.0", "wheel"]
