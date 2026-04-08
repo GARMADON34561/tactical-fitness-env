@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: tactical_fitness_env
+Version: 0.1.0
+Summary: Tactical Fitness AI - OpenEnv Environment for military training
+Author: Garmadon
+Requires-Python: >=3.10
+Requires-Dist: openenv-core>=0.2.2
+Requires-Dist: openai>=1.0.0
+Requires-Dist: uvicorn>=0.24.0
