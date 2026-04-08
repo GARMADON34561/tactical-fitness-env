@@ -1,9 +1,10 @@
 """
 Tactical Fitness AI - Baseline Inference Script
+Strictly follows hackathon requirements: uses injected LLM proxy.
 """
 
-import asyncio
 import os
+import asyncio
 import json
 from typing import List, Optional
 from openai import OpenAI
@@ -12,10 +13,12 @@ from openai import OpenAI
 from models import FitnessAction
 from server.tactical_fitness_environment import TacticalFitnessEnvironment
 
-# Environment variables
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.openai.com/v1")
-API_KEY = os.getenv("OPENAI_API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "gpt-3.5-turbo")
+# ========== MANDATORY: Use the injected proxy environment variables ==========
+# These are provided by the hackathon platform – do NOT set defaults or fallbacks
+API_BASE_URL = os.environ["API_BASE_URL"]   # Must exist, no default
+API_KEY = os.environ["API_KEY"]             # Must exist, no default
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")  # Optional default allowed
+
 TASK_NAME = os.getenv("TASK_NAME", "tactical_fitness")
 BENCHMARK = os.getenv("BENCHMARK", "tactical_fitness_env")
 MAX_STEPS = 10
@@ -33,9 +36,9 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 async def main():
+    # Initialize client with the PROXY – no hardcoded URL or key
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
     
-    # Create environment instance
     env = TacticalFitnessEnvironment()
     
     rewards = []
@@ -45,14 +48,13 @@ async def main():
     log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
     
     try:
-        # Reset environment
         obs = env.reset()
         
         for step in range(1, MAX_STEPS + 1):
             if obs.done:
                 break
             
-            # Build prompt for LLM
+            # Build prompt from observation
             prompt = f"""
 You are a military strength and conditioning coach.
 
@@ -64,46 +66,39 @@ Days Until Deployment: {obs.days_to_deploy}
 
 Design a training plan. Output a JSON with:
 {{
-    "weekly_plan": ["Monday: run 5km", "Tuesday: rest", "Wednesday: push-ups 3x10"],
+    "weekly_plan": ["Monday: run 5km", "Tuesday: rest", ...],
     "rest_days": [1, 4],
-    "nutrition_advice": "Eat high protein meals"
+    "nutrition_advice": "..."
 }}
 """
+            # ========== MANDATORY API CALL ==========
+            # Do NOT wrap this in try/except that bypasses the call.
+            # If it fails, the script fails – that's acceptable to the validator.
+            completion = client.chat.completions.create(
+                model=MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": "You are a military fitness expert. Output valid JSON only."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=300
+            )
+            response_text = completion.choices[0].message.content.strip()
             
-            # Get LLM response
-            try:
-                completion = client.chat.completions.create(
-                    model=MODEL_NAME,
-                    messages=[
-                        {"role": "system", "content": "You are a military fitness expert. Output valid JSON only."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.7,
-                    max_tokens=300
-                )
-                response_text = completion.choices[0].message.content
-                # Clean the response (remove markdown if present)
-                response_text = response_text.strip()
-                if response_text.startswith("```json"):
-                    response_text = response_text[7:]
-                if response_text.startswith("```"):
-                    response_text = response_text[3:]
-                if response_text.endswith("```"):
-                    response_text = response_text[:-3]
-                
-                action_data = json.loads(response_text)
-                action = FitnessAction(
-                    weekly_plan=action_data.get("weekly_plan", []),
-                    rest_days=action_data.get("rest_days", []),
-                    nutrition_advice=action_data.get("nutrition_advice", "")
-                )
-            except Exception as e:
-                print(f"LLM error: {e}, using fallback")
-                action = FitnessAction(
-                    weekly_plan=["Run 3km", "Push-ups 3x10", "Rest", "Squats 3x12", "Pull-ups 5x5", "Rest", "Long run 8km"],
-                    rest_days=[2, 5],
-                    nutrition_advice="High protein, stay hydrated"
-                )
+            # Parse JSON response (basic cleanup)
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            action_data = json.loads(response_text)
+            
+            action = FitnessAction(
+                weekly_plan=action_data.get("weekly_plan", []),
+                rest_days=action_data.get("rest_days", []),
+                nutrition_advice=action_data.get("nutrition_advice", "")
+            )
             
             # Execute step
             obs = env.step(action)
@@ -120,19 +115,20 @@ Design a training plan. Output a JSON with:
             if done:
                 break
         
-        # Calculate final score
-        max_possible_reward = 3.0  # 3 tasks, 1.0 max each
+        max_possible_reward = 3.0
         score = total_reward / max_possible_reward if max_possible_reward > 0 else 0.0
         success = score >= 0.5
         
     except Exception as e:
-        print(f"Error: {e}")
+        # If anything fails, log the error and exit – do NOT provide a fallback that avoids API calls
+        print(f"Fatal error: {e}", flush=True)
         success = False
         score = 0.0
         steps_taken = 0
         rewards = []
     
-    log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
+    finally:
+        log_end(success=success, steps=steps_taken, score=score, rewards=rewards)
 
 if __name__ == "__main__":
     asyncio.run(main())
