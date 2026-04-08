@@ -3,7 +3,6 @@
 import uvicorn
 from openenv.core.env_server import create_app
 
-# Use absolute imports
 from models import FitnessAction, FitnessObservation
 from server.tactical_fitness_environment import TacticalFitnessEnvironment
 
@@ -16,8 +15,8 @@ app = create_app(
 )
 
 def main():
-    """Run the server."""
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    """Entry point for the server script."""
+    uvicorn.run(app, host="0.0.0.0", port=7860)
 
 if __name__ == "__main__":
     main()

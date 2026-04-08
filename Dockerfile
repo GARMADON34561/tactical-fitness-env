@@ -5,6 +5,7 @@ WORKDIR /app
 COPY . .
 
 RUN pip install --no-cache-dir openenv-core openai uvicorn
+
 RUN pip install -e .
 
 EXPOSE 7860
