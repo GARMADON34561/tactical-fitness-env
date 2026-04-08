@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+import uvicorn
 
-# Import directly from the local environment file (same directory)
 from .tactical_fitness_env_environment import TacticalFitnessEnvironment, TacticalFitnessAction
 
 app = FastAPI()
@@ -28,3 +28,10 @@ async def step(req: StepRequest):
 @app.get("/state")
 async def get_state():
     return env.state()
+
+def main():
+    """Entry point for openenv serve / multi-mode deployment."""
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=False)
+
+if __name__ == "__main__":
+    main()
