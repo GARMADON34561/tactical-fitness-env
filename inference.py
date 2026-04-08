@@ -1,16 +1,23 @@
+"""
+Tactical Fitness AI - Baseline Inference Script
+Strictly follows hackathon requirements: uses injected LLM proxy.
+"""
+
 import os
 import asyncio
 import json
 from typing import List, Optional
 from openai import OpenAI
 
-# Import your environment and action class
-from tactical_fitness_env import TacticalFitnessEnvironment, TacticalFitnessAction
+# Import your environment
+from models import FitnessAction
+from server.tactical_fitness_environment import TacticalFitnessEnvironment
 
-# ========== MANDATORY: Use injected proxy environment variables ==========
+# ========== MANDATORY: Use the injected proxy environment variables ==========
+# These are provided by the hackathon platform – do NOT set defaults or fallbacks
 API_BASE_URL = os.environ["API_BASE_URL"]   # Must exist, no default
 API_KEY = os.environ["API_KEY"]             # Must exist, no default
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")  # Optional default allowed
+MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo")
 
 TASK_NAME = os.getenv("TASK_NAME", "tactical_fitness")
 BENCHMARK = os.getenv("BENCHMARK", "tactical_fitness_env")
@@ -29,67 +36,91 @@ def log_end(success: bool, steps: int, score: float, rewards: List[float]) -> No
     print(f"[END] success={str(success).lower()} steps={steps} score={score:.3f} rewards={rewards_str}", flush=True)
 
 async def main():
+    # Initialize client with the PROXY – no hardcoded URL or key
     client = OpenAI(base_url=API_BASE_URL, api_key=API_KEY)
+    
     env = TacticalFitnessEnvironment()
     
     rewards = []
     steps_taken = 0
     total_reward = 0.0
     
-    # Choose a task – you can also loop over tasks, but for validation just pick one
-    task_id = "easy"   # change to "medium" or "hard" if you want, but validator will test all three separately
-    log_start(task=task_id, env=BENCHMARK, model=MODEL_NAME)
+    log_start(task=TASK_NAME, env=BENCHMARK, model=MODEL_NAME)
     
     try:
-        obs = env.reset(task_id=task_id)
+        obs = env.reset()
         
         for step in range(1, MAX_STEPS + 1):
-            # Build prompt
+            if obs.done:
+                break
+            
+            # Build prompt from observation
             prompt = f"""
-You are an echo bot. The current task is: {task_id}
-- If task is 'easy': reply with exactly the same message you received.
-- If task is 'medium': reply with the reversed message.
-- If task is 'hard': reply with the message in uppercase.
+You are a military strength and conditioning coach.
 
-Last echoed message: {obs.echoed_message}
-Step number: {step}
+Current Mission: {obs.mission_type}
+Squad Readiness: Cardio={obs.squad_readiness.get('cardio', 5)}/10, Strength={obs.squad_readiness.get('strength', 5)}/10, Ruck={obs.squad_readiness.get('ruck', 5)}/10
+Injuries: {obs.injuries}
+Available Equipment: {obs.equipment}
+Days Until Deployment: {obs.days_to_deploy}
 
-Send your next message (just the text, no extra words).
+Design a training plan. Output a JSON with:
+{{
+    "weekly_plan": ["Monday: run 5km", "Tuesday: rest", "Wednesday: push-ups 3x10", "Thursday: rest", "Friday: squats 3x12", "Saturday: long run 8km", "Sunday: rest"],
+    "rest_days": [1, 3, 6],
+    "nutrition_advice": "High protein, stay hydrated"
+}}
 """
-            # API call through the proxy (mandatory)
+            # ========== MANDATORY API CALL ==========
+            # Do NOT wrap this in try/except that bypasses the call.
+            # If it fails, the script fails – that's acceptable to the validator.
             completion = client.chat.completions.create(
                 model=MODEL_NAME,
                 messages=[
-                    {"role": "system", "content": "You are an echo bot. Reply with a short message."},
+                    {"role": "system", "content": "You are a military fitness expert. Output valid JSON only."},
                     {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
-                max_tokens=50
+                max_tokens=300
             )
             response_text = completion.choices[0].message.content.strip()
             
-            # Create action
-            action = TacticalFitnessAction(message=response_text)
+            # Parse JSON response (basic cleanup)
+            if response_text.startswith("```json"):
+                response_text = response_text[7:]
+            if response_text.startswith("```"):
+                response_text = response_text[3:]
+            if response_text.endswith("```"):
+                response_text = response_text[:-3]
+            action_data = json.loads(response_text)
             
-            # Step the environment – returns (observation, reward, done, info)
-            obs, reward, done, info = env.step(action)
+            action = FitnessAction(
+                weekly_plan=action_data.get("weekly_plan", []),
+                rest_days=action_data.get("rest_days", []),
+                nutrition_advice=action_data.get("nutrition_advice", "")
+            )
+            
+            # Execute step
+            obs = env.step(action)
+            reward = obs.reward if hasattr(obs, 'reward') else 0.0
+            done = obs.done if hasattr(obs, 'done') else False
             
             rewards.append(reward)
             steps_taken = step
             total_reward += reward
             
-            log_step(step=step, action=response_text[:50], reward=reward, done=done, error=None)
+            action_summary = str(action.weekly_plan[:2]) if action.weekly_plan else "[]"
+            log_step(step=step, action=action_summary, reward=reward, done=done, error=None)
             
             if done:
                 break
         
-        # Dummy score – the actual score will be computed by the grader from trajectory
-        # This is just for the log; the validator uses the grader's output.
-        max_possible_reward = 1.0
+        max_possible_reward = 3.0
         score = total_reward / max_possible_reward if max_possible_reward > 0 else 0.0
         success = score >= 0.5
         
     except Exception as e:
+        # If anything fails, log the error and exit – do NOT provide a fallback that avoids API calls
         print(f"Fatal error: {e}", flush=True)
         success = False
         score = 0.0

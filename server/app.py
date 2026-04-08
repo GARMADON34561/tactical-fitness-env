@@ -1,37 +1,23 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+"""FastAPI server for Tactical Fitness Environment."""
+
 import uvicorn
+from openenv.core.env_server import create_app
 
-from .tactical_fitness_env_environment import TacticalFitnessEnvironment, TacticalFitnessAction
+# Use absolute imports
+from models import FitnessAction, FitnessObservation
+from server.tactical_fitness_environment import TacticalFitnessEnvironment
 
-app = FastAPI()
-env = TacticalFitnessEnvironment()
-
-class ResetRequest(BaseModel):
-    task_id: str = "easy"
-
-class StepRequest(BaseModel):
-    action: dict
-
-@app.post("/reset")
-async def reset(req: ResetRequest = None):
-    task_id = req.task_id if req else "easy"
-    obs = env.reset(task_id=task_id)
-    return {"observation": obs.dict(), "done": False, "info": {}}
-
-@app.post("/step")
-async def step(req: StepRequest):
-    action = TacticalFitnessAction(message=req.action.get("message", ""))
-    obs, reward, done, info = env.step(action)
-    return {"observation": obs.dict(), "reward": reward, "done": done, "info": info}
-
-@app.get("/state")
-async def get_state():
-    return env.state()
+# Create the FastAPI app
+app = create_app(
+    TacticalFitnessEnvironment,
+    FitnessAction,
+    FitnessObservation,
+    env_name="tactical_fitness_env"
+)
 
 def main():
-    """Entry point for openenv serve / multi-mode deployment."""
-    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=False)
+    """Run the server."""
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 if __name__ == "__main__":
     main()

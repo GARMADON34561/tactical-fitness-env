@@ -1,7 +1,5 @@
-spec_version: 1
 name: tactical_fitness_env
-type: space
-runtime: fastapi
-app: server.app:app
-port: 8000
-
+version: 0.1.0
+description: Military fitness planning environment for AI agents
+author: Garmadon
+license: MIT

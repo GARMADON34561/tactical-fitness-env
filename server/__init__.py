@@ -1,9 +1,4 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-# All rights reserved.
-#
-# This source code is licensed under the BSD-style license found in the
-# LICENSE file in the root directory of this source tree.
+from .tactical_fitness_environment import TacticalFitnessEnvironment
+from models import FitnessAction, FitnessObservation, FitnessState
 
-"""Tactical Fitness Env environment server components."""
-
-from .tactical_fitness_env_environment import TacticalFitnessEnvironment, TacticalFitnessAction, TacticalFitnessObservation
+__all__ = ["TacticalFitnessEnvironment", "FitnessAction", "FitnessObservation", "FitnessState"]

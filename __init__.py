@@ -1,1 +1,6 @@
-from server.tactical_fitness_env_environment import TacticalFitnessEnvironment, TacticalFitnessAction, TacticalFitnessObservation
+"""Tactical Fitness AI - OpenEnv Environment."""
+
+from .models import FitnessAction, FitnessObservation, FitnessState
+from .server.tactical_fitness_environment import TacticalFitnessEnvironment
+
+__all__ = ["FitnessAction", "FitnessObservation", "FitnessState", "TacticalFitnessEnvironment"]
