@@ -5,8 +5,7 @@ from typing import Optional
 from openenv.core.env_server.interfaces import Environment
 from openenv.core.env_server.types import State
 
-from tactical_fitness_env.models import FitnessAction, FitnessObservation, FitnessState
-
+from ..models import FitnessAction, FitnessObservation, FitnessState
 
 class TacticalFitnessEnvironment(Environment[FitnessAction, FitnessObservation, FitnessState]):
     """
