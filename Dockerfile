@@ -2,24 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
+COPY . .
 
-# Copy project files
-COPY pyproject.toml uv.lock README.md ./
-COPY server/ ./server/
-COPY *.py ./
+RUN pip install --no-cache-dir openenv-core openai uvicorn
+RUN pip install -e .
 
-# Install uv for faster dependency management
-RUN pip install uv && \
-    uv venv .venv && \
-    . .venv/bin/activate && \
-    uv pip install -e .
+EXPOSE 7860
 
-# Expose the port
-EXPOSE 8000
-
-# Run the server
-CMD [".venv/bin/python", "-m", "uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "7860"]
