@@ -16,7 +16,12 @@ app = create_app(
 
 def main():
     """Entry point for the server script."""
-    uvicorn.run(app, host="0.0.0.0", port=7860)
+    uvicorn.run(
+        app, 
+        host="0.0.0.0", 
+        port=7860,
+        log_level="info"
+    )
 
 if __name__ == "__main__":
     main()
