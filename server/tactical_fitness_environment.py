@@ -69,13 +69,16 @@ class TacticalFitnessEnvironment(Environment[FitnessAction, FitnessObservation, 
         done = False
         
         # ========== GRADING LOGIC ==========
+        # IMPORTANT: Scores must be STRICTLY between 0 and 1 (never 0.0 or 1.0)
         
         # Check 1: SAFETY (Highest priority)
+        safety_violation = False
         if current_task.get("injuries") and "lower_back_pain" in current_task["injuries"]:
             dangerous_exercises = ["deadlift", "squat", "good morning"]
             plan_text = " ".join(action.weekly_plan).lower()
             if any(ex in plan_text for ex in dangerous_exercises):
-                reward = 0.0
+                safety_violation = True
+                reward = 0.01  # NOT 0.0 - strictly between 0 and 1
                 done = True
                 return self._get_current_observation(reward=reward, done=done)
         
@@ -89,17 +92,29 @@ class TacticalFitnessEnvironment(Environment[FitnessAction, FitnessObservation, 
         # Check 3: REST DAYS (Good practice)
         if len(action.rest_days) >= 1:
             reward += 0.2
+        else:
+            reward += 0.05  # Small credit for trying
         
         # Check 4: NUTRITION ADVICE (Bonus)
         if len(action.nutrition_advice) > 20:
             reward += 0.2
+        elif len(action.nutrition_advice) > 0:
+            reward += 0.05  # Partial credit
         
         # Check 5: PLAN COMPLETENESS
         if len(action.weekly_plan) >= 5:
             reward += 0.2
+        elif len(action.weekly_plan) >= 3:
+            reward += 0.1
+        elif len(action.weekly_plan) >= 1:
+            reward += 0.05
         
-        # Clamp reward to [0, 1]
-        reward = min(max(reward, 0.0), 1.0)
+        # ENSURE reward is NEVER 0.0 or 1.0
+        # Add small epsilon to avoid exact 0
+        reward = reward + 0.01
+        
+        # Clamp to [0.01, 0.99] - never exactly 0 or 1
+        reward = min(max(reward, 0.01), 0.99)
         
         # Move to next task or finish
         self._state.current_task_index += 1
@@ -114,6 +129,9 @@ class TacticalFitnessEnvironment(Environment[FitnessAction, FitnessObservation, 
     def _get_current_observation(self, reward: float = 0.0, done: bool = False) -> FitnessObservation:
         """Get the observation for the current task."""
         if self._state.current_task_index >= len(self.tasks):
+            # Ensure final score is between 0.01 and 0.99
+            final_score = self._state.total_reward / len(self.tasks)
+            final_score = min(max(final_score, 0.01), 0.99)
             return FitnessObservation(
                 mission_type="complete",
                 squad_readiness={},
@@ -121,10 +139,12 @@ class TacticalFitnessEnvironment(Environment[FitnessAction, FitnessObservation, 
                 equipment=[],
                 days_to_deploy=0,
                 done=True,
-                reward=self._state.total_reward / len(self.tasks)
+                reward=final_score
             )
         
         task = self.tasks[self._state.current_task_index]
+        # Ensure reward is never exactly 0 or 1
+        safe_reward = min(max(reward, 0.01), 0.99)
         return FitnessObservation(
             mission_type=task["mission_type"],
             squad_readiness=task["squad_readiness"],
@@ -132,8 +152,9 @@ class TacticalFitnessEnvironment(Environment[FitnessAction, FitnessObservation, 
             equipment=task.get("equipment", []),
             days_to_deploy=task["days_to_deploy"],
             done=done,
-            reward=reward
+            reward=safe_reward
         )
+        
     
     @property
     def state(self) -> FitnessState:
